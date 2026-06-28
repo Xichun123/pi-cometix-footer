@@ -1,6 +1,6 @@
 {
   "name": "pi-cometix-footer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Cometix-style single-line footer for pi. Borrows the cometix theme look from CCometixLine (MIT). Shows Model(+thinking) | Directory | Git(branch+status) | Context% tokens/window | Tokens(in/out + cache hit rate).",
   "keywords": [
     "pi-package"
@@ -13,13 +13,13 @@
     "url": "git+https://github.com/Xichun123/pi-cometix-footer.git"
   },
   "files": [
-    "extensions",
+    "index.ts",
     "assets",
     "README.md"
   ],
   "pi": {
     "extensions": [
-      "./extensions"
+      "./index.ts"
     ]
   },
   "peerDependencies": {

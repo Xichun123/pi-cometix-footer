@@ -46,7 +46,7 @@ Then `/reload` in pi. Toggle on/off with the `/cometix-footer` command.
 
 ## Customize
 
-Edit `extensions/cometix-footer.ts`, then `/reload`. Notable knobs at the top:
+Edit `index.ts`, then `/reload`. Notable knobs at the top:
 
 - `ICON_MODE: "nerd" | "emoji"` — switch icon set if your terminal has no Nerd Font.
 - `ICONS.nerd.*` — per-segment Nerd Font codepoints (see <https://www.nerdfonts.com/cheat-sheet>).
