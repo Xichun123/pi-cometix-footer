@@ -2,6 +2,8 @@
 
 A single-line, [CCometixLine](https://github.com/Haleclipse/CCometixLine) "cometix"-style footer for [pi](https://pi.dev).
 
+![cometix footer demo](assets/demo.png)
+
 ```
   π  GLM-5.2 • xhigh   |    ~/path   |    master ✓   |    4% 13k/272k   |    ↑26k ↓2.1k CH96.8%
 ```
