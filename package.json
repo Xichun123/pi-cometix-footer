@@ -1,13 +1,24 @@
 {
   "name": "pi-cometix-footer",
-  "version": "1.0.2",
-  "description": "Cometix-style single-line footer for pi. Borrows the cometix theme look from CCometixLine (MIT). Shows Model(+thinking) | Directory | Git(branch+status) | Context% tokens/window | Tokens(in/out + cache hit rate).",
+  "version": "1.0.3",
+  "description": "Cometix-style single-line footer for pi — model, path, git, context & tokens at a glance.",
   "keywords": [
-    "pi-package"
+    "pi",
+    "pi-package",
+    "footer",
+    "statusline",
+    "terminal",
+    "nerd-fonts",
+    "typescript",
+    "cometix",
+    "ccometixline"
   ],
   "license": "MIT",
   "author": "Xichun123",
   "homepage": "https://github.com/Xichun123/pi-cometix-footer#readme",
+  "bugs": {
+    "url": "https://github.com/Xichun123/pi-cometix-footer/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Xichun123/pi-cometix-footer.git"
@@ -15,7 +26,8 @@
   "files": [
     "index.ts",
     "assets",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "pi": {
     "extensions": [
