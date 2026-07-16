@@ -1,6 +1,6 @@
 {
   "name": "pi-cometix-footer",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Cometix-style single-line footer for pi — model, path, git, context & tokens at a glance.",
   "keywords": [
     "pi",
@@ -32,7 +32,8 @@
   "pi": {
     "extensions": [
       "./index.ts"
-    ]
+    ],
+    "image": "https://cdn.jsdelivr.net/npm/pi-cometix-footer/assets/demo.png"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
