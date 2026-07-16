@@ -15,7 +15,7 @@ Look inspired by [CCometixLine](https://github.com/Haleclipse/CCometixLine) (MIT
 ![cometix footer demo](assets/demo.png)
 
 ```text
-π  GLM-5.2 • high  |  > ~/Downloads/agent  |  🌿 master ✓  |  19% 186k/1.0M  |  ↑565k ↓83k CH99.8%
+π  GPT-5.6 Sol • max  |  > ~/agent/pi-cometix-footer  |  main ✓  |  2% 6.4k/372k  |  ↑13k ↓61 CH88.2%  |  MCP: 0/5 servers
 ```
 
 | Segment | What it shows | Color |
