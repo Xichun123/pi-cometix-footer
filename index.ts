@@ -5,7 +5,7 @@
  *   https://github.com/Haleclipse/CCometixLine
  *
  * Single line, " | " separators, Nerd Font icons, bold colored segments:
- *   Model | Directory | Git(branch + ✓/●/⚠ + ↑n/↓n) | Context% | Tokens + TPS | Cost
+ *   Model | Directory | Git(branch + ✓/●/⚠ + ↑n/↓n) | Context% | Tokens + TPS | Cost | Task time
  *
  * Toggle with /cometix-footer (on by default), or toggle TPS with
  * /cometix-footer tps. /reload to pick up edits.
@@ -14,6 +14,7 @@
 import type { ExtensionAPI, ReadonlyFooterDataProvider } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, type TUI } from "@earendil-works/pi-tui";
 import { isAbsolute, relative, resolve, sep } from "node:path";
+import { formatDuration } from "./duration.ts";
 import { formatTps, TpsTracker } from "./tps.ts";
 
 // --- icon set ---------------------------------------------------------------
@@ -30,6 +31,7 @@ const ICONS = {
 		ctx: "\uf49b", // nf-md-counter
 		usage: cp(0xf0a9e), // nf-md-chart_bar
 		cost: cp(0xf01c1), // nf-md-currency_usd
+		duration: cp(0xf051b), // nf-md-timer_outline
 	},
 	emoji: {
 		model: "🤖",
@@ -38,6 +40,7 @@ const ICONS = {
 		ctx: "⚡️",
 		usage: "📊",
 		cost: "💰",
+		duration: "⏱️",
 	},
 }[ICON_MODE];
 
@@ -55,6 +58,7 @@ const C = {
 	blue: 94, // git
 	magenta: 95, // context
 	cost: 33, // cost (yellow, normal)
+	duration: 95, // task duration
 	red: 91,
 	warn: 93,
 };
@@ -119,6 +123,10 @@ export default function (pi: ExtensionAPI) {
 	// Latest response throughput, measured after the first streamed output token.
 	const tpsTracker = new TpsTracker();
 	let latestTps: number | undefined;
+
+	// Time from the latest user message until the complete agent run settles.
+	let taskStartedAt: number | undefined;
+	let latestTaskDurationMs: number | undefined;
 
 	// git status cache, refreshed async; render reads it sync
 	let gitCache: { ts: number; data: GitStatus } = {
@@ -258,11 +266,16 @@ export default function (pi: ExtensionAPI) {
 					}
 					const tokSeg = paint(C.cyan, tokText);
 					const costSeg = totalCost > 0 ? paint(C.cost, `${ICONS.cost} ${totalCost.toFixed(3)}`) : "";
+					const durationSeg =
+						latestTaskDurationMs != null
+							? paint(C.duration, `${ICONS.duration} ${formatDuration(latestTaskDurationMs)}`)
+							: "";
 
 					const segs = [modelSeg, dirSeg];
 					if (gitSeg) segs.push(gitSeg);
 					segs.push(ctxSeg, tokSeg);
 					if (costSeg) segs.push(costSeg);
+					if (durationSeg) segs.push(durationSeg);
 
 					// extension/package statuses (e.g. MCP servers) — appended as a final segment on the same line
 					const statuses = footerData.getExtensionStatuses();
@@ -287,7 +300,13 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	pi.on("message_start", (event) => {
-		if (event.message.role === "assistant") tpsTracker.start();
+		if (event.message.role === "user") {
+			taskStartedAt = event.message.timestamp;
+			latestTaskDurationMs = undefined;
+			requestFooterRender?.();
+		} else if (event.message.role === "assistant") {
+			tpsTracker.start();
+		}
 	});
 
 	pi.on("message_update", (event) => {
@@ -307,10 +326,19 @@ export default function (pi: ExtensionAPI) {
 		requestFooterRender?.();
 	});
 
+	pi.on("agent_settled", () => {
+		if (taskStartedAt === undefined) return;
+		latestTaskDurationMs = Math.max(0, Date.now() - taskStartedAt);
+		taskStartedAt = undefined;
+		requestFooterRender?.();
+	});
+
 	pi.on("session_start", (_event, ctx) => {
 		// Re-install each session with a fresh ctx so model/sessionManager stay current.
 		latestTps = undefined;
 		tpsTracker.start();
+		taskStartedAt = undefined;
+		latestTaskDurationMs = undefined;
 		if (ctx.mode !== "tui" || !userEnabled) return;
 		installFooter(ctx);
 	});
