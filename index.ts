@@ -5,7 +5,7 @@
  *   https://github.com/Haleclipse/CCometixLine
  *
  * Single line, " | " separators, Nerd Font icons, bold colored segments:
- *   Model | Directory | Git(branch + ✓/●/⚠ + ↑n/↓n) | Context% | Tokens + TPS | Cost | Task time
+ *   Model | Directory | Git(branch + ✓/●/⚠ + ↑n/↓n) | Context% | Tokens | Cost | Task time + TPS
  *
  * Toggle with /cometix-footer (on by default), or toggle TPS with
  * /cometix-footer tps. /reload to pick up edits.
@@ -117,6 +117,7 @@ export default function (pi: ExtensionAPI) {
 	let userEnabled = true;
 	let tpsEnabled = DEFAULT_SHOW_TPS;
 	let timer: ReturnType<typeof setInterval> | undefined;
+	let elapsedTimer: ReturnType<typeof setInterval> | undefined;
 	let unsubBranch: (() => void) | undefined;
 	let requestFooterRender: (() => void) | undefined;
 
@@ -135,6 +136,17 @@ export default function (pi: ExtensionAPI) {
 	};
 	let gitInFlight = false;
 	const GIT_TTL = 3000;
+
+	function stopElapsedTicker(): void {
+		if (elapsedTimer) clearInterval(elapsedTimer);
+		elapsedTimer = undefined;
+	}
+
+	function startElapsedTicker(): void {
+		stopElapsedTicker();
+		if (taskStartedAt === undefined || !requestFooterRender) return;
+		elapsedTimer = setInterval(() => requestFooterRender?.(), 1000);
+	}
 
 	async function refreshGit(cwd: string, branch: string | null) {
 		if (gitInFlight) return;
@@ -164,6 +176,7 @@ export default function (pi: ExtensionAPI) {
 		ctx.ui.setFooter((tui: TUI, theme: any, footerData: ReadonlyFooterDataProvider) => {
 			const requestRender = () => tui.requestRender();
 			requestFooterRender = requestRender;
+			startElapsedTicker();
 
 			// refresh on git branch / HEAD change
 			unsubBranch = footerData.onBranchChange(() => {
@@ -180,6 +193,7 @@ export default function (pi: ExtensionAPI) {
 				dispose() {
 					if (timer) clearInterval(timer);
 					timer = undefined;
+					stopElapsedTicker();
 					unsubBranch?.();
 					unsubBranch = undefined;
 					if (requestFooterRender === requestRender) requestFooterRender = undefined;
@@ -261,15 +275,18 @@ export default function (pi: ExtensionAPI) {
 					if ((totalCR > 0 || totalCW > 0) && lastHit != null) {
 						tokText += ` CH${lastHit.toFixed(1)}%`;
 					}
-					if (tpsEnabled && latestTps != null) {
-						tokText += ` · ${formatTps(latestTps)} tok/s`;
-					}
 					const tokSeg = paint(C.cyan, tokText);
 					const costSeg = totalCost > 0 ? paint(C.cost, `${ICONS.cost} ${totalCost.toFixed(3)}`) : "";
-					const durationSeg =
-						latestTaskDurationMs != null
-							? paint(C.duration, `${ICONS.duration} ${formatDuration(latestTaskDurationMs)}`)
+					const displayedTaskDurationMs =
+						taskStartedAt != null ? Math.max(0, now - taskStartedAt) : latestTaskDurationMs;
+					let durationText =
+						displayedTaskDurationMs != null
+							? `${ICONS.duration} ${formatDuration(displayedTaskDurationMs)}`
 							: "";
+					if (tpsEnabled && latestTps != null) {
+						durationText += `${durationText ? " · " : ""}${formatTps(latestTps)} tok/s`;
+					}
+					const durationSeg = durationText ? paint(C.duration, durationText) : "";
 
 					const segs = [modelSeg, dirSeg];
 					if (gitSeg) segs.push(gitSeg);
@@ -303,6 +320,8 @@ export default function (pi: ExtensionAPI) {
 		if (event.message.role === "user") {
 			taskStartedAt = event.message.timestamp;
 			latestTaskDurationMs = undefined;
+			latestTps = undefined;
+			startElapsedTicker();
 			requestFooterRender?.();
 		} else if (event.message.role === "assistant") {
 			tpsTracker.start();
@@ -330,6 +349,7 @@ export default function (pi: ExtensionAPI) {
 		if (taskStartedAt === undefined) return;
 		latestTaskDurationMs = Math.max(0, Date.now() - taskStartedAt);
 		taskStartedAt = undefined;
+		stopElapsedTicker();
 		requestFooterRender?.();
 	});
 
@@ -339,6 +359,7 @@ export default function (pi: ExtensionAPI) {
 		tpsTracker.start();
 		taskStartedAt = undefined;
 		latestTaskDurationMs = undefined;
+		stopElapsedTicker();
 		if (ctx.mode !== "tui" || !userEnabled) return;
 		installFooter(ctx);
 	});
@@ -369,6 +390,7 @@ export default function (pi: ExtensionAPI) {
 				ctx.ui.setFooter(undefined);
 				if (timer) clearInterval(timer);
 				timer = undefined;
+				stopElapsedTicker();
 				unsubBranch?.();
 				unsubBranch = undefined;
 				ctx.ui.notify("Cometix footer off (default restored)", "info");

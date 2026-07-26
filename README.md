@@ -15,7 +15,7 @@ Look inspired by [CCometixLine](https://github.com/Haleclipse/CCometixLine) (MIT
 ![cometix footer demo](assets/demo.png)
 
 ```text
-π  GPT-5.6 Sol • max  |  > ~/agent/pi-cometix-footer  |  main ✓  |  2% 6.4k/372k  |  ↑13k ↓61 CH88.2% · 42.3 tok/s  |  󰇁 0.284  |  󰄉 1m 23s  |  MCP: 0/5 servers
+π  GPT-5.6 Sol • max  |  > ~/agent/pi-cometix-footer  |  main ✓  |  2% 6.4k/372k  |  ↑13k ↓61 CH88.2%  |  󰇁 0.284  |  󰄉 1m 23s · 42.3 tok/s  |  MCP: 0/5 servers
 ```
 
 | Segment | What it shows | Color |
@@ -24,9 +24,9 @@ Look inspired by [CCometixLine](https://github.com/Haleclipse/CCometixLine) (MIT
 | **Directory** | CWD, `~`-relative | yellow icon / green path |
 | **Git** | Branch · clean `✓` / dirty `●` / conflict `⚠` · ahead `↑n` / behind `↓n` | blue |
 | **Context** | Window fill `pct tokens/window` | magenta → yellow (>70%) → red (>90%) |
-| **Tokens** | Session `↑in ↓out` + latest cache hit `CH%` + optional latest-response TPS | cyan |
+| **Tokens** | Session `↑in ↓out` + latest cache hit `CH%` | cyan |
 | **Cost** | Session cumulative USD cost reported by Pi (`󰇁 0.000`); omitted when zero/unavailable | yellow |
-| **Task time** | Time from the latest user message until the agent fully settles, including model calls, tools, and automatic retries | magenta |
+| **Activity** | Live task time (updated every second) + optional latest-response TPS; final values remain after the agent settles | magenta |
 | **Statuses** | Extension / MCP status lines (if any) | theme default |
 
 Segments are bold, separated by dim ` | `, with Nerd Font icons (emoji fallback available).
