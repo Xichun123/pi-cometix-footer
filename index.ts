@@ -31,7 +31,7 @@ const ICONS = {
 		ctx: "\uf49b", // nf-md-counter
 		usage: cp(0xf0a9e), // nf-md-chart_bar
 		cost: cp(0xf01c1), // nf-md-currency_usd
-		duration: cp(0xf051b), // nf-md-timer_outline
+		duration: cp(0xf0109), // nf-md-camera_timer
 	},
 	emoji: {
 		model: "🤖",
