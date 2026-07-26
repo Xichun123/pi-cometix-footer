@@ -4,7 +4,7 @@
 [![license](https://img.shields.io/npm/l/pi-cometix-footer?style=flat-square)](./LICENSE)
 [![pi package](https://img.shields.io/badge/pi-package-8b5cf6?style=flat-square)](https://pi.dev)
 
-Single-line **cometix-style** footer for [pi](https://pi.dev) — model, path, git, context window, session tokens, and latest-response throughput at a glance.
+Single-line **cometix-style** footer for [pi](https://pi.dev) — model, path, git, context window, session tokens, latest-response throughput, and cost at a glance.
 
 Look inspired by [CCometixLine](https://github.com/Haleclipse/CCometixLine) (MIT). Independent pi extension; own codebase.
 
@@ -15,7 +15,7 @@ Look inspired by [CCometixLine](https://github.com/Haleclipse/CCometixLine) (MIT
 ![cometix footer demo](assets/demo.png)
 
 ```text
-π  GPT-5.6 Sol • max  |  > ~/agent/pi-cometix-footer  |  main ✓  |  2% 6.4k/372k  |  ↑13k ↓61 CH88.2% · 42.3 tok/s  |  MCP: 0/5 servers
+π  GPT-5.6 Sol • max  |  > ~/agent/pi-cometix-footer  |  main ✓  |  2% 6.4k/372k  |  ↑13k ↓61 CH88.2% · 42.3 tok/s  |  $0.284  |  MCP: 0/5 servers
 ```
 
 | Segment | What it shows | Color |
@@ -25,6 +25,7 @@ Look inspired by [CCometixLine](https://github.com/Haleclipse/CCometixLine) (MIT
 | **Git** | Branch · clean `✓` / dirty `●` / conflict `⚠` · ahead `↑n` / behind `↓n` | blue |
 | **Context** | Window fill `pct tokens/window` | magenta → yellow (>70%) → red (>90%) |
 | **Tokens** | Session `↑in ↓out` + latest cache hit `CH%` + optional latest-response TPS | cyan |
+| **Cost** | Session cumulative cost reported by Pi (`$0.000`); omitted when zero/unavailable | yellow |
 | **Statuses** | Extension / MCP status lines (if any) | theme default |
 
 Segments are bold, separated by dim ` | `, with Nerd Font icons (emoji fallback available).

@@ -2,7 +2,7 @@
   "name": "pi-cometix-footer",
   "version": "1.0.4",
   "type": "module",
-  "description": "Cometix-style single-line footer for pi — model, path, git, context & tokens at a glance.",
+  "description": "Cometix-style single-line footer for pi — model, path, git, context, tokens & cost at a glance.",
   "keywords": [
     "pi",
     "pi-package",

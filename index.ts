@@ -231,6 +231,7 @@ export default function (pi: ExtensionAPI) {
 					let tout = 0;
 					let totalCR = 0;
 					let totalCW = 0;
+					let totalCost = 0;
 					let lastHit: number | undefined;
 					for (const e of ctx.sessionManager.getEntries()) {
 						if (e?.type === "message" && e.message?.role === "assistant") {
@@ -242,6 +243,7 @@ export default function (pi: ExtensionAPI) {
 								const cw = u.cacheWrite ?? 0;
 								totalCR += cr;
 								totalCW += cw;
+								totalCost += u.cost?.total ?? 0;
 								const prompt = (u.input ?? 0) + cr + cw;
 								if (prompt > 0) lastHit = (cr / prompt) * 100;
 							}
@@ -255,10 +257,12 @@ export default function (pi: ExtensionAPI) {
 						tokText += ` · ${formatTps(latestTps)} tok/s`;
 					}
 					const tokSeg = paint(C.cyan, tokText);
+					const costSeg = totalCost > 0 ? paint(C.cost, `${ICONS.cost} $${totalCost.toFixed(3)}`) : "";
 
 					const segs = [modelSeg, dirSeg];
 					if (gitSeg) segs.push(gitSeg);
 					segs.push(ctxSeg, tokSeg);
+					if (costSeg) segs.push(costSeg);
 
 					// extension/package statuses (e.g. MCP servers) — appended as a final segment on the same line
 					const statuses = footerData.getExtensionStatuses();
