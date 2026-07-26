@@ -29,7 +29,7 @@ const ICONS = {
 		git: cp(0xf02a2), // nf-md-git
 		ctx: "\uf49b", // nf-md-counter
 		usage: cp(0xf0a9e), // nf-md-chart_bar
-		cost: "\ueec1", // nf-md-cash
+		cost: cp(0xf01c1), // nf-md-currency_usd
 	},
 	emoji: {
 		model: "🤖",
@@ -257,7 +257,7 @@ export default function (pi: ExtensionAPI) {
 						tokText += ` · ${formatTps(latestTps)} tok/s`;
 					}
 					const tokSeg = paint(C.cyan, tokText);
-					const costSeg = totalCost > 0 ? paint(C.cost, `${ICONS.cost} $${totalCost.toFixed(3)}`) : "";
+					const costSeg = totalCost > 0 ? paint(C.cost, `${ICONS.cost} ${totalCost.toFixed(3)}`) : "";
 
 					const segs = [modelSeg, dirSeg];
 					if (gitSeg) segs.push(gitSeg);

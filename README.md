@@ -15,7 +15,7 @@ Look inspired by [CCometixLine](https://github.com/Haleclipse/CCometixLine) (MIT
 ![cometix footer demo](assets/demo.png)
 
 ```text
-π  GPT-5.6 Sol • max  |  > ~/agent/pi-cometix-footer  |  main ✓  |  2% 6.4k/372k  |  ↑13k ↓61 CH88.2% · 42.3 tok/s  |  $0.284  |  MCP: 0/5 servers
+π  GPT-5.6 Sol • max  |  > ~/agent/pi-cometix-footer  |  main ✓  |  2% 6.4k/372k  |  ↑13k ↓61 CH88.2% · 42.3 tok/s  |  󰇁 0.284  |  MCP: 0/5 servers
 ```
 
 | Segment | What it shows | Color |
@@ -25,7 +25,7 @@ Look inspired by [CCometixLine](https://github.com/Haleclipse/CCometixLine) (MIT
 | **Git** | Branch · clean `✓` / dirty `●` / conflict `⚠` · ahead `↑n` / behind `↓n` | blue |
 | **Context** | Window fill `pct tokens/window` | magenta → yellow (>70%) → red (>90%) |
 | **Tokens** | Session `↑in ↓out` + latest cache hit `CH%` + optional latest-response TPS | cyan |
-| **Cost** | Session cumulative cost reported by Pi (`$0.000`); omitted when zero/unavailable | yellow |
+| **Cost** | Session cumulative USD cost reported by Pi (`󰇁 0.000`); omitted when zero/unavailable | yellow |
 | **Statuses** | Extension / MCP status lines (if any) | theme default |
 
 Segments are bold, separated by dim ` | `, with Nerd Font icons (emoji fallback available).
