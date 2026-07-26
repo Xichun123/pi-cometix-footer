@@ -291,8 +291,8 @@ export default function (pi: ExtensionAPI) {
 					const segs = [modelSeg, dirSeg];
 					if (gitSeg) segs.push(gitSeg);
 					segs.push(ctxSeg, tokSeg);
-					if (costSeg) segs.push(costSeg);
 					if (durationSeg) segs.push(durationSeg);
+					if (costSeg) segs.push(costSeg);
 
 					// extension/package statuses (e.g. MCP servers) — appended as a final segment on the same line
 					const statuses = footerData.getExtensionStatuses();
