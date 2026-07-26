@@ -5,18 +5,21 @@
  *   https://github.com/Haleclipse/CCometixLine
  *
  * Single line, " | " separators, Nerd Font icons, bold colored segments:
- *   Model | Directory | Git(branch + ✓/●/⚠ + ↑n/↓n) | Context% | Tokens | Cost
+ *   Model | Directory | Git(branch + ✓/●/⚠ + ↑n/↓n) | Context% | Tokens + TPS | Cost
  *
- * Toggle with /cometix-footer (on by default). /reload to pick up edits.
+ * Toggle with /cometix-footer (on by default), or toggle TPS with
+ * /cometix-footer tps. /reload to pick up edits.
  */
 
 import type { ExtensionAPI, ReadonlyFooterDataProvider } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, type TUI } from "@earendil-works/pi-tui";
 import { isAbsolute, relative, resolve, sep } from "node:path";
+import { formatTps, TpsTracker } from "./tps.ts";
 
 // --- icon set ---------------------------------------------------------------
 // Set to "emoji" if your terminal has no Nerd Font (icons become 🤖 📁 🌿 ⚡ 📊 💰).
 const ICON_MODE: "nerd" | "emoji" = "nerd";
+const DEFAULT_SHOW_TPS = true;
 
 const cp = (n: number) => String.fromCodePoint(n);
 const ICONS = {
@@ -106,10 +109,16 @@ function parseGitPorcelain(out: string): GitStatus {
 
 // --- extension --------------------------------------------------------------
 export default function (pi: ExtensionAPI) {
-	// user preference: on by default. Toggle with /cometix-footer.
+	// User preferences: footer and TPS are on by default.
 	let userEnabled = true;
+	let tpsEnabled = DEFAULT_SHOW_TPS;
 	let timer: ReturnType<typeof setInterval> | undefined;
 	let unsubBranch: (() => void) | undefined;
+	let requestFooterRender: (() => void) | undefined;
+
+	// Latest response throughput, measured after the first streamed output token.
+	const tpsTracker = new TpsTracker();
+	let latestTps: number | undefined;
 
 	// git status cache, refreshed async; render reads it sync
 	let gitCache: { ts: number; data: GitStatus } = {
@@ -145,6 +154,9 @@ export default function (pi: ExtensionAPI) {
 		unsubBranch = undefined;
 
 		ctx.ui.setFooter((tui: TUI, theme: any, footerData: ReadonlyFooterDataProvider) => {
+			const requestRender = () => tui.requestRender();
+			requestFooterRender = requestRender;
+
 			// refresh on git branch / HEAD change
 			unsubBranch = footerData.onBranchChange(() => {
 				void refreshGit(ctx.cwd, footerData.getGitBranch());
@@ -162,6 +174,7 @@ export default function (pi: ExtensionAPI) {
 					timer = undefined;
 					unsubBranch?.();
 					unsubBranch = undefined;
+					if (requestFooterRender === requestRender) requestFooterRender = undefined;
 				},
 				render(width: number): string[] {
 					// trigger async refresh if stale (non-blocking)
@@ -238,6 +251,9 @@ export default function (pi: ExtensionAPI) {
 					if ((totalCR > 0 || totalCW > 0) && lastHit != null) {
 						tokText += ` CH${lastHit.toFixed(1)}%`;
 					}
+					if (tpsEnabled && latestTps != null) {
+						tokText += ` · ${formatTps(latestTps)} tok/s`;
+					}
 					const tokSeg = paint(C.cyan, tokText);
 
 					const segs = [modelSeg, dirSeg];
@@ -266,16 +282,53 @@ export default function (pi: ExtensionAPI) {
 		});
 	}
 
+	pi.on("message_start", (event) => {
+		if (event.message.role === "assistant") tpsTracker.start();
+	});
+
+	pi.on("message_update", (event) => {
+		if (event.message.role !== "assistant") return;
+		const update = event.assistantMessageEvent;
+		if (
+			(update.type === "text_delta" || update.type === "thinking_delta" || update.type === "toolcall_delta") &&
+			update.delta.length > 0
+		) {
+			tpsTracker.noteOutput(update.delta);
+		}
+	});
+
+	pi.on("message_end", (event) => {
+		if (event.message.role !== "assistant") return;
+		latestTps = tpsTracker.finish(event.message.usage.output)?.tokensPerSecond;
+		requestFooterRender?.();
+	});
+
 	pi.on("session_start", (_event, ctx) => {
 		// Re-install each session with a fresh ctx so model/sessionManager stay current.
+		latestTps = undefined;
+		tpsTracker.start();
 		if (ctx.mode !== "tui" || !userEnabled) return;
 		installFooter(ctx);
 	});
 
 	pi.registerCommand("cometix-footer", {
-		description: "Toggle cometix-style footer",
-		handler: async (_args, ctx) => {
+		description: "Toggle cometix-style footer, or TPS with /cometix-footer tps",
+		handler: async (args, ctx) => {
 			if (ctx.mode !== "tui") return;
+			const [action, value] = args.trim().toLowerCase().split(/\s+/);
+			if (action === "tps") {
+				if (value === "on") tpsEnabled = true;
+				else if (value === "off") tpsEnabled = false;
+				else tpsEnabled = !tpsEnabled;
+				requestFooterRender?.();
+				ctx.ui.notify(`Cometix footer TPS ${tpsEnabled ? "on" : "off"}`, "info");
+				return;
+			}
+			if (action) {
+				ctx.ui.notify("Usage: /cometix-footer [tps [on|off]]", "warning");
+				return;
+			}
+
 			userEnabled = !userEnabled;
 			if (userEnabled) {
 				installFooter(ctx);

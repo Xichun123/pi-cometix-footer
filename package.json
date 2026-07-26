@@ -1,6 +1,7 @@
 {
   "name": "pi-cometix-footer",
   "version": "1.0.4",
+  "type": "module",
   "description": "Cometix-style single-line footer for pi — model, path, git, context & tokens at a glance.",
   "keywords": [
     "pi",
@@ -23,8 +24,12 @@
     "type": "git",
     "url": "git+https://github.com/Xichun123/pi-cometix-footer.git"
   },
+  "scripts": {
+    "test": "node --test tps.test.ts"
+  },
   "files": [
     "index.ts",
+    "tps.ts",
     "assets",
     "README.md",
     "LICENSE"
