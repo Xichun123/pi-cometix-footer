@@ -1,0 +1,36 @@
+name: Compatibility checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 8 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node: "22.19.0"
+            pi: "0.99.1"
+          - node: "24"
+            pi: "latest"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - name: Install latest host APIs
+        if: matrix.pi == 'latest'
+        run: npm install --ignore-scripts --no-save --package-lock=false @earendil-works/pi-coding-agent@latest @earendil-works/pi-tui@latest
+      - run: npm run check
+      - run: npm pack --dry-run

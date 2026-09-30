@@ -7,20 +7,20 @@
  * Single line, " | " separators, Nerd Font icons, bold colored segments:
  *   Model | Directory | Git(branch + ✓/●/⚠ + ↑n/↓n) | Context% | Tokens | Cost | Task time + TPS
  *
- * Toggle with /cometix-footer (on by default), or toggle TPS with
- * /cometix-footer tps. /reload to pick up edits.
+ * Configure segments and TPS with /cometix-footer.
+ * /reload to pick up edits.
  */
 
-import type { ExtensionAPI, ReadonlyFooterDataProvider } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth, visibleWidth, type TUI } from "@earendil-works/pi-tui";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { formatDuration } from "./duration.ts";
 import { formatTps, TpsTracker } from "./tps.ts";
+import { defaultLayout, editLayout, readLayout, writeLayout, type SegmentId } from "./settings.ts";
 
 // --- icon set ---------------------------------------------------------------
 // Set to "emoji" if your terminal has no Nerd Font (icons become 🤖 📁 🌿 ⚡ 📊 💰).
 const ICON_MODE: "nerd" | "emoji" = "nerd";
-const DEFAULT_SHOW_TPS = true;
 
 const cp = (n: number) => String.fromCodePoint(n);
 const ICONS = {
@@ -113,12 +113,10 @@ function parseGitPorcelain(out: string): GitStatus {
 
 // --- extension --------------------------------------------------------------
 export default function (pi: ExtensionAPI) {
-	// User preferences: footer and TPS are on by default.
-	let userEnabled = true;
-	let tpsEnabled = DEFAULT_SHOW_TPS;
-	let timer: ReturnType<typeof setInterval> | undefined;
+	let layout = defaultLayout();
+	const settingsPath = join(getAgentDir(), "cometix-footer.json");
 	let elapsedTimer: ReturnType<typeof setInterval> | undefined;
-	let unsubBranch: (() => void) | undefined;
+	let disposeFooter: (() => void) | undefined;
 	let requestFooterRender: (() => void) | undefined;
 
 	// Latest response throughput, measured after the first streamed output token.
@@ -129,12 +127,6 @@ export default function (pi: ExtensionAPI) {
 	let taskStartedAt: number | undefined;
 	let latestTaskDurationMs: number | undefined;
 
-	// git status cache, refreshed async; render reads it sync
-	let gitCache: { ts: number; data: GitStatus } = {
-		ts: 0,
-		data: { dirty: false, conflicts: false, ahead: 0, behind: 0 },
-	};
-	let gitInFlight = false;
 	const GIT_TTL = 3000;
 
 	function stopElapsedTicker(): void {
@@ -144,65 +136,87 @@ export default function (pi: ExtensionAPI) {
 
 	function startElapsedTicker(): void {
 		stopElapsedTicker();
-		if (taskStartedAt === undefined || !requestFooterRender) return;
+		if (taskStartedAt === undefined || !requestFooterRender || layout.hidden.includes("activity")) return;
 		elapsedTimer = setInterval(() => requestFooterRender?.(), 1000);
 	}
 
-	async function refreshGit(cwd: string, branch: string | null) {
-		if (gitInFlight) return;
-		if (!branch) {
-			gitCache = { ts: Date.now(), data: { dirty: false, conflicts: false, ahead: 0, behind: 0 } };
-			return;
-		}
-		gitInFlight = true;
-		try {
-			const r = await pi.exec("git", ["status", "-b", "--porcelain=v1"], { cwd, timeout: 3000 });
-			const data = r.code === 0 ? parseGitPorcelain(r.stdout) : gitCache.data;
-			gitCache = { ts: Date.now(), data };
-		} catch {
-			// keep previous cache
-		} finally {
-			gitInFlight = false;
-		}
-	}
+	function installFooter(ctx: ExtensionContext): void {
+		disposeFooter?.();
 
-	function installFooter(ctx: any): void {
-		// clean up any previous instance first
-		if (timer) clearInterval(timer);
-		timer = undefined;
-		unsubBranch?.();
-		unsubBranch = undefined;
+		ctx.ui.setFooter((tui, theme, footerData) => {
+			// Each component owns its cache, subscription and in-flight subprocess.
+			let disposed = false;
+			let gitRequest: AbortController | undefined;
+			let gitCache: { ts: number; data: GitStatus } = {
+				ts: 0,
+				data: { dirty: false, conflicts: false, ahead: 0, behind: 0 },
+			};
+			const requestRender = () => {
+				if (!disposed) tui.requestRender();
+			};
 
-		ctx.ui.setFooter((tui: TUI, theme: any, footerData: ReadonlyFooterDataProvider) => {
-			const requestRender = () => tui.requestRender();
+			async function refreshGit(): Promise<void> {
+				if (disposed || gitRequest || layout.hidden.includes("git")) return;
+				const branch = footerData.getGitBranch();
+				if (!branch) {
+					gitCache = { ts: Date.now(), data: { dirty: false, conflicts: false, ahead: 0, behind: 0 } };
+					return;
+				}
+				const request = new AbortController();
+				gitRequest = request;
+				try {
+					const r = await pi.exec("git", ["status", "-b", "--porcelain=v1"], {
+						cwd: ctx.cwd,
+						timeout: 3000,
+						signal: request.signal,
+					});
+					if (!disposed && !request.signal.aborted && branch === footerData.getGitBranch()) {
+						gitCache = { ts: Date.now(), data: r.code === 0 ? parseGitPorcelain(r.stdout) : gitCache.data };
+					}
+				} catch {
+					// Keep the previous cache; retry on the next scheduled refresh.
+					if (!disposed && !request.signal.aborted) gitCache.ts = Date.now();
+				} finally {
+					if (gitRequest === request) {
+						gitRequest = undefined;
+						requestRender();
+					}
+				}
+			}
+
+			const refresh = () => void refreshGit();
+			const unsubBranch = layout.hidden.includes("git") ? () => {} : footerData.onBranchChange(() => {
+				gitRequest?.abort();
+				gitRequest = undefined;
+				gitCache = { ts: 0, data: { dirty: false, conflicts: false, ahead: 0, behind: 0 } };
+				refresh();
+				requestRender();
+			});
+			const timer = layout.hidden.includes("git") ? undefined : setInterval(refresh, GIT_TTL);
+			const dispose = () => {
+				if (disposed) return;
+				disposed = true;
+				if (timer) clearInterval(timer);
+				gitRequest?.abort();
+				unsubBranch();
+				if (requestFooterRender === requestRender) {
+					stopElapsedTicker();
+					requestFooterRender = undefined;
+				}
+				if (disposeFooter === dispose) disposeFooter = undefined;
+			};
+			disposeFooter = dispose;
 			requestFooterRender = requestRender;
 			startElapsedTicker();
 
-			// refresh on git branch / HEAD change
-			unsubBranch = footerData.onBranchChange(() => {
-				void refreshGit(ctx.cwd, footerData.getGitBranch());
-				tui.requestRender();
-			});
-			// periodic refresh for dirty / ahead / behind
-			timer = setInterval(() => {
-				void refreshGit(ctx.cwd, footerData.getGitBranch()).then(() => tui.requestRender());
-			}, GIT_TTL);
-
 			return {
 				invalidate() {},
-				dispose() {
-					if (timer) clearInterval(timer);
-					timer = undefined;
-					stopElapsedTicker();
-					unsubBranch?.();
-					unsubBranch = undefined;
-					if (requestFooterRender === requestRender) requestFooterRender = undefined;
-				},
+				dispose,
 				render(width: number): string[] {
 					// trigger async refresh if stale (non-blocking)
 					const now = Date.now();
 					if (now - gitCache.ts > GIT_TTL) {
-						void refreshGit(ctx.cwd, footerData.getGitBranch()).then(() => tui.requestRender());
+						refresh();
 					}
 
 					const home = process.env.HOME || process.env.USERPROFILE;
@@ -214,8 +228,7 @@ export default function (pi: ExtensionAPI) {
 					let modelSeg: string;
 					if (showLvl) {
 						// color the level with pi's thinking palette (matches editor border)
-						const lvlToken = `thinking${lvl.charAt(0).toUpperCase()}${lvl.slice(1)}`;
-						const lvlStr = theme.fg(lvlToken, lvl);
+						const lvlStr = theme.getThinkingBorderColor(lvl)(lvl);
 						modelSeg = `\x1b[1;${C.cyan}m${ICONS.model}  ${modelId}${RESET}\x1b[2m • ${RESET}${lvlStr}${RESET}`;
 					} else {
 						modelSeg = paint(C.cyan, `${ICONS.model}  ${modelId}`);
@@ -255,20 +268,23 @@ export default function (pi: ExtensionAPI) {
 					let totalCW = 0;
 					let totalCost = 0;
 					let lastHit: number | undefined;
-					for (const e of ctx.sessionManager.getEntries()) {
-						if (e?.type === "message" && e.message?.role === "assistant") {
-							const u = (e.message as any).usage;
-							if (u) {
-								tin += u.input ?? 0;
-								tout += u.output ?? 0;
-								const cr = u.cacheRead ?? 0;
-								const cw = u.cacheWrite ?? 0;
-								totalCR += cr;
-								totalCW += cw;
-								totalCost += u.cost?.total ?? 0;
-								const prompt = (u.input ?? 0) + cr + cw;
-								if (prompt > 0) lastHit = (cr / prompt) * 100;
-							}
+					// ponytail: O(n) scan per render; cache by session/leaf/count if long sessions lag.
+					const entries = layout.hidden.includes("tokens") && layout.hidden.includes("cost")
+						? [] : ctx.sessionManager.getEntries();
+					for (const e of entries) {
+						const u = e.type === "message"
+							? (e.message.role === "assistant" || e.message.role === "toolResult" ? e.message.usage : undefined)
+							: ("usage" in e ? e.usage : undefined);
+						if (!u) continue;
+						tin += u.input ?? 0;
+						tout += u.output ?? 0;
+						totalCR += u.cacheRead ?? 0;
+						totalCW += u.cacheWrite ?? 0;
+						totalCost += u.cost?.total ?? 0;
+						// Cache hit is about the latest main-model response, not nested/summary work.
+						if (e.type === "message" && e.message.role === "assistant") {
+							const prompt = (u.input ?? 0) + (u.cacheRead ?? 0) + (u.cacheWrite ?? 0);
+							lastHit = prompt > 0 ? ((u.cacheRead ?? 0) / prompt) * 100 : undefined;
 						}
 					}
 					let tokText = `${ICONS.usage} ↑${fmtTok(tin)} ↓${fmtTok(tout)}`;
@@ -283,30 +299,31 @@ export default function (pi: ExtensionAPI) {
 						displayedTaskDurationMs != null
 							? `${ICONS.duration} ${formatDuration(displayedTaskDurationMs)}`
 							: "";
-					if (tpsEnabled && latestTps != null) {
+					if (layout.showTps && latestTps != null) {
 						durationText += `${durationText ? " · " : ""}${formatTps(latestTps)} tok/s`;
 					}
 					const durationSeg = durationText ? paint(C.duration, durationText) : "";
 
-					const segs = [modelSeg, dirSeg];
-					if (gitSeg) segs.push(gitSeg);
-					segs.push(ctxSeg, tokSeg);
-					if (durationSeg) segs.push(durationSeg);
-					if (costSeg) segs.push(costSeg);
+					const segments: Record<SegmentId, string> = {
+						model: modelSeg, directory: dirSeg, git: gitSeg, context: ctxSeg,
+						tokens: tokSeg, activity: durationSeg, cost: costSeg, statuses: "",
+					};
 
-					// extension/package statuses (e.g. MCP servers) — appended as a final segment on the same line
+					// Extension/package statuses (e.g. MCP servers).
 					const statuses = footerData.getExtensionStatuses();
 					if (statuses.size > 0) {
 						const statusLine = Array.from(statuses.entries())
 							.sort(([a], [b]) => a.localeCompare(b))
 							.map(([, t]) => (t ?? "").replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim())
 							.join(" ");
-						if (statusLine) {
-							segs.push(statusLine);
-						}
+						segments.statuses = statusLine;
 					}
 
-					let line = segs.join(SEG);
+					let line = layout.order
+						.filter((id) => !layout.hidden.includes(id))
+						.map((id) => segments[id])
+						.filter(Boolean)
+						.join(SEG);
 					if (visibleWidth(line) > width) {
 						line = truncateToWidth(line, width, "");
 					}
@@ -353,48 +370,49 @@ export default function (pi: ExtensionAPI) {
 		requestFooterRender?.();
 	});
 
+	pi.on("session_shutdown", () => {
+		disposeFooter?.();
+		stopElapsedTicker();
+		taskStartedAt = undefined;
+	});
+
 	pi.on("session_start", (_event, ctx) => {
 		// Re-install each session with a fresh ctx so model/sessionManager stay current.
+		disposeFooter?.();
 		latestTps = undefined;
 		tpsTracker.start();
 		taskStartedAt = undefined;
 		latestTaskDurationMs = undefined;
 		stopElapsedTicker();
-		if (ctx.mode !== "tui" || !userEnabled) return;
+		if (ctx.mode !== "tui") return;
+		try {
+			layout = readLayout(settingsPath);
+		} catch (error) {
+			layout = defaultLayout();
+			ctx.ui.notify(`Cannot load ${settingsPath}; using defaults: ${String(error)}`, "warning");
+		}
 		installFooter(ctx);
 	});
 
 	pi.registerCommand("cometix-footer", {
-		description: "Toggle cometix-style footer, or TPS with /cometix-footer tps",
+		description: "Configure footer segments, order and generation speed (TPS)",
 		handler: async (args, ctx) => {
 			if (ctx.mode !== "tui") return;
-			const [action, value] = args.trim().toLowerCase().split(/\s+/);
-			if (action === "tps") {
-				if (value === "on") tpsEnabled = true;
-				else if (value === "off") tpsEnabled = false;
-				else tpsEnabled = !tpsEnabled;
-				requestFooterRender?.();
-				ctx.ui.notify(`Cometix footer TPS ${tpsEnabled ? "on" : "off"}`, "info");
+			if (args.trim()) {
+				ctx.ui.notify("Usage: /cometix-footer", "warning");
 				return;
 			}
-			if (action) {
-				ctx.ui.notify("Usage: /cometix-footer [tps [on|off]]", "warning");
+			const next = await editLayout(ctx, layout);
+			if (!next) return;
+			try {
+				writeLayout(settingsPath, next);
+			} catch (error) {
+				ctx.ui.notify(`Cannot save footer settings: ${String(error)}`, "error");
 				return;
 			}
-
-			userEnabled = !userEnabled;
-			if (userEnabled) {
-				installFooter(ctx);
-				ctx.ui.notify("Cometix footer on", "info");
-			} else {
-				ctx.ui.setFooter(undefined);
-				if (timer) clearInterval(timer);
-				timer = undefined;
-				stopElapsedTicker();
-				unsubBranch?.();
-				unsubBranch = undefined;
-				ctx.ui.notify("Cometix footer off (default restored)", "info");
-			}
+			layout = next;
+			installFooter(ctx);
+			ctx.ui.notify("Cometix 页脚设置已保存", "info");
 		},
 	});
 }

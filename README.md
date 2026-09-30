@@ -51,14 +51,15 @@ Then in pi:
 /reload
 ```
 
-Footer and TPS are **on by default**. Toggle the footer or TPS independently:
+The footer is active while the extension is installed. Open its settings with the single command:
 
 ```text
 /cometix-footer
-/cometix-footer tps
-/cometix-footer tps on
-/cometix-footer tps off
 ```
+
+Segment visibility, order, and generation speed (TPS) are all configured in this menu. There is no whole-footer off switch or subcommand. To remove the footer, uninstall the package with `pi remove <installed-source>` and run `/reload`.
+
+Session totals include all billable usage in the session file: assistant responses, nested model work reported by tools, cache warming, compaction, and branch summaries. Cache hit rate belongs only to the latest assistant response; unknown prompt usage hides it rather than keeping a stale value.
 
 TPS uses the final output-token count divided by the elapsed time from the first streamed output delta to response completion, so time to first token is excluded. It is omitted when a provider does not stream output deltas or report valid output-token usage.
 
@@ -69,12 +70,32 @@ TPS uses the final output-token count divided by the elapsed time from the first
 
 ## Customize
 
-Edit the installed package (or a local clone), then `/reload`.
+### Choose segments and their order
+
+```text
+/cometix-footer
+```
+
+The settings panel stays open while you edit, and keeps the arrow on the item you changed:
+
+- **↑ / ↓**: select an element.
+- **Enter / Space**: show/hide it (`✓` enabled, `○` hidden), or toggle **生成速度（TPS）**.
+- **- / +**: move the selected element up/down; the arrow follows it. No Ctrl needed, avoiding system/terminal shortcut conflicts.
+- Select **恢复默认** and press Enter to reset the draft.
+- **Ctrl+S**: save, apply immediately, and close the panel. No separate save menu item.
+- **Esc**: discard changes and close.
+
+The eight elements are model/thinking level, directory, Git, context, tokens/cache hit, task time/TPS, cost, and extension/MCP statuses. Hidden elements keep their place when re-enabled. Missing data (such as Git outside a repository) still omits that element without leaving extra separators. The **生成速度（TPS）** menu option controls speed within the task-time element; hiding that element hides both time and speed.
+
+Layout preferences are saved globally in `~/.pi/agent/cometix-footer.json` (or under `PI_CODING_AGENT_DIR`), and loaded on startup/reload. Invalid files produce a warning and use defaults without overwriting the file. Disabling Git stops its polling and branch subscription; disabling task time stops its live ticker. Older configuration files without a TPS setting keep TPS enabled by default.
+
+### Colors and icons
+
+For these advanced options, edit the installed package (or a local clone), then `/reload`.
 
 | Knob | Where | Purpose |
 | --- | --- | --- |
 | `ICON_MODE` | top of `index.ts` | `"nerd"` (default) or `"emoji"` if no Nerd Font |
-| `DEFAULT_SHOW_TPS` | top of `index.ts` | show latest-response TPS by default (`true`) |
 | `ICONS.nerd.*` | icon map | per-segment Nerd Font codepoints |
 | `C.*` | color map | 16-color SGR codes per segment |
 | `GIT_TTL` | near git cache | git status refresh interval (ms, default `3000`) |
@@ -92,8 +113,28 @@ pi install ./pi-cometix-footer
 
 ## Requirements
 
-- [pi](https://pi.dev) (peer: `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`)
+- Node.js **22.19.0 or newer**
+- [pi](https://pi.dev): tested baseline **0.99.1**; CI also checks the latest npm release. Older releases are not supported.
+- Host-provided peers: `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`. The `*` peer ranges follow Pi packaging conventions; they do not promise compatibility with every version.
 - A [Nerd Font](https://www.nerdfonts.com/) in your terminal — or set `ICON_MODE = "emoji"`
+
+---
+
+## Development and compatibility checks
+
+```bash
+npm ci --ignore-scripts
+npm run check
+npm pack --dry-run
+```
+
+`check` runs strict TypeScript checking and Node's built-in tests, including real Pi extension loading, usage aggregation, streaming events, rendering, resource cleanup, and stale Git-query cancellation. Development dependencies are pinned in `package-lock.json`; no runtime dependencies are bundled with the extension.
+
+Compatibility CI runs on pushes, pull requests, and weekly: Node 22.19.0 with Pi 0.99.1, and Node 24 with the latest Pi release. Release tags run the same type/test checks before publishing with a pinned npm CLI.
+
+### npm publishing setup
+
+On npmjs.com, configure this package's Trusted Publisher for user `Xichun123`, repository `pi-cometix-footer`, and workflow filename `publish.yml` (not its full path). Allow direct `npm publish`; a stage-only authorization will not work with this workflow. This account-side configuration cannot be set or verified by the repository tests. GitHub Actions uses a GitHub-hosted runner and `id-token: write`; no publishing token is needed.
 
 ---
 

@@ -1,6 +1,6 @@
 {
   "name": "pi-cometix-footer",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "type": "module",
   "description": "Cometix-style single-line footer for pi — model, path, git, tokens, cost & task time at a glance.",
   "keywords": [
@@ -25,12 +25,18 @@
     "url": "git+https://github.com/Xichun123/pi-cometix-footer.git"
   },
   "scripts": {
-    "test": "node --test *.test.ts"
+    "test": "node --test *.test.ts",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test"
+  },
+  "engines": {
+    "node": ">=22.19.0"
   },
   "files": [
     "index.ts",
     "duration.ts",
     "tps.ts",
+    "settings.ts",
     "assets",
     "README.md",
     "LICENSE"
@@ -40,6 +46,12 @@
       "./index.ts"
     ],
     "image": "https://cdn.jsdelivr.net/npm/pi-cometix-footer/assets/demo.png"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.99.1",
+    "@earendil-works/pi-tui": "0.99.1",
+    "@types/node": "22.20.4",
+    "typescript": "7.0.2"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
