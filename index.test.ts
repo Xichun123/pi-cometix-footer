@@ -168,7 +168,8 @@ test("renders all thinking levels and narrow widths; streaming settles timing an
 		await f.emit({ type: "message_end", message });
 		assert.match(f.text(), /10\.0 tok\/s/);
 	}
-	await f.emit({ type: "agent_settled" });
+	const settledEvent = { type: "agent_settled" as const, aborted: false };
+	await f.emit(settledEvent);
 	assert.equal(f.timers.size, 1);
 	assert.match(f.text(), /9s · 10\.0 tok\/s/);
 	f.keys(...nav(8), ENTER, SAVE);
