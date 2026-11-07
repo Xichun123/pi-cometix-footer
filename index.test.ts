@@ -17,6 +17,12 @@ import { defaultLayout, readLayout, writeLayout } from "./settings.ts";
 type Assistant = Extract<Parameters<SessionManager["appendMessage"]>[0], { role: "assistant" }>;
 type FooterFactory = NonNullable<Parameters<ExtensionContext["ui"]["setFooter"]>[0]>;
 const ENTER = "\r", SAVE = "\x13", ESC = "\x1b", MOVE_UP = "-", MOVE_DOWN = "+";
+type ExecResult = Awaited<ReturnType<ExtensionAPI["exec"]>>;
+// Non-literal so it type-checks against Pi versions with and without `truncated`.
+const execOk = (stdout: string): ExecResult => {
+	const result = { stdout, stderr: "", code: 0, killed: false, truncated: false };
+	return result;
+};
 const nav = (steps: number): string[] => Array(Math.abs(steps)).fill(steps < 0 ? "\x1b[A" : "\x1b[B");
 
 function usage(n = 1): Assistant["usage"] {
@@ -52,7 +58,7 @@ function setup(t: TestContext) {
 	const branches = new Set<() => void>();
 	let branch: string | null = null;
 	let level: ReturnType<ExtensionAPI["getThinkingLevel"]> = "max";
-	let runGit: ExtensionAPI["exec"] = async () => ({ stdout: "## main\n", stderr: "", code: 0, killed: false });
+	let runGit: ExtensionAPI["exec"] = async () => execOk("## main\n");
 	let footer: ReturnType<FooterFactory> | undefined;
 	const requestRender = t.mock.fn();
 	const fg = t.mock.fn((_color: ThemeColor, text: string) => text);
@@ -218,7 +224,7 @@ test("aborts obsolete Git queries and ignores late results after branch changes 
 	const pending: { signal: AbortSignal; finish: (stdout: string) => void }[] = [];
 	f.setExec(async (_cmd, _args, options) => new Promise((resolve) => {
 		assert.ok(options?.signal);
-		pending.push({ signal: options.signal, finish: (stdout) => resolve({ stdout, stderr: "", code: 0, killed: false }) });
+		pending.push({ signal: options.signal, finish: (stdout) => resolve(execOk(stdout)) });
 	}));
 	await f.start();
 	f.setBranch("main");
@@ -271,7 +277,7 @@ test("settings toggle segments, reorder, persist, and stop hidden Git/activity w
 	const f = setup(t);
 	await f.start();
 	let queries = 0;
-	f.setExec(async () => { queries++; return { stdout: "## main\n", stderr: "", code: 0, killed: false }; });
+	f.setExec(async () => { queries++; return execOk("## main\n"); });
 	f.keys(...nav(2), ENTER, ...nav(3), ENTER, ...nav(2), ...Array(7).fill(MOVE_UP), SAVE);
 	await f.command();
 	const saved = readLayout(f.settingsPath);
